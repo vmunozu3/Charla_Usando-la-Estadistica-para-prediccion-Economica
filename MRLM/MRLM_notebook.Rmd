@@ -1,0 +1,190 @@
+---
+title: "Regresión Lineal Simple y Múltiple — Brecha Salarial de Género"
+subtitle: "Parte práctica: Introducción a la Econometría — Modelos de Regresión"
+date: "September, 2026"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Datos
+
+## Descripción de la base
+
+Usamos un conjunto de datos simulados de 500 empleados. Fuente: Coursera. *Econometrics: Methods and Applications*. El dataset es el siguiente:
+
+```{r datos}
+wage <- read.table("DataMRLM.txt", header = TRUE, sep = "\t")
+str(wage)
+```
+
+| Variable | Descripción |
+|---|---|
+| `Wage` (Y) | Salario anual, indexado de forma que la mediana sea 100 |
+| `LogWage` | Logaritmo natural de `Wage` (variable respuesta) |
+| `Age` | Edad, en años (20–70) |
+| `Female` | 1 si es mujer, 0 si es hombre |
+| `Educ` | Nivel educativo (categórica: 1, 2, 3, 4 — de menor a mayor) |
+| `DE2`, `DE3`, `DE4` | Variables dummy para `Educ` = 2, 3, 4 (`Educ` = 1 es la categoría de referencia) |
+| `Parttime` | 1 si el empleo es de medio tiempo (máx. 3 días/semana), 0 si es de tiempo completo |
+
+## ¿Qué queremos analizar?
+
+Queremos **comparar el salario entre hombres y mujeres** (brecha salarial de género). Analizaremos las diferencias en promedio y también si estas diferencias se deben a otras características que también afectan el salario (edad, educación, tipo de jornada) con un MRLM.
+
+# Transformación de Wage a log(Wage)
+
+Es muy importante que antes de modelar hagamos un análisis descriptivo y observemos cómo se comportan los datos. En el histograma de la derecha podemos observar que los salarios están sesgados a la derecha. Transformamos con el logaritmo para que la distribución sea más simétrica (cercano al supuesto de normalidad que exige el MRLM).
+
+```{r histogramas, fig.width=8, fig.height=4}
+par(mfrow = c(1, 2))
+hist(wage$Wage, main = "Wage (sin transformar)",
+     xlab = "Índice salarial", col = "lightblue")
+hist(wage$LogWage, main = "log(Wage)",
+     xlab = "log(índice salarial)", col = "lightgreen")
+```
+
+Cuando la variable respuesta está en logaritmo, el coeficiente de una variable categórica (como el género) se interpreta aproximadamente como **el cambio porcentual** en el salario asociado a esa característica (se puede verificar por propiedades de los logaritmos):
+
+$$\%\Delta \text{Wage} \approx 100 \times \hat{\beta}_{\text{Female}}$$
+
+También, el logaritmo suele estabilizar la varianza, ayudando a cumplir el supuesto de homocedasticidad.
+
+```{r boxplot, fig.width=6, fig.height=5}
+boxplot(LogWage ~ Female, data = wage,
+        names = c("Hombres", "Mujeres"),
+        ylab = "log(Wage)", col = c("lightblue", "lightpink"),
+        main = "Distribución de log(Wage) por género")
+```
+
+# Ajuste del modelo: Regresión Lineal Simple
+
+Empecemos ajustando un modelo simple, para luego compararlo con un modelo con más variables. Para este primero, modelamos el salario en función únicamente del género. Esto nos da la **brecha salarial bruta** (sin ajustar).
+
+$$\log(\text{Wage}_i) = \beta_0 + \beta_1 \cdot \text{Female}_i + \varepsilon_i$$
+
+```{r mod_simple}
+mod_simple <- lm(LogWage ~ Female, data = wage)
+summary(mod_simple)
+```
+
+## Análisis del modelo
+
+```{r analisis_simple}
+beta_female_simple <- coef(mod_simple)["Female"]
+gap_exacto <- (exp(beta_female_simple) - 1) * 100
+
+cat("Brecha salarial bruta (aproximada):", round(beta_female_simple * 100, 2), "%\n")
+cat("Brecha salarial bruta (exacta, con exp()):", round(gap_exacto, 2), "%\n")
+```
+
+Se concluye que las mujeres de esta muestra ganan, en promedio, cerca de 22.2% menos que los hombres. Nos falta ver si esta brecha se debe a otras diferencias entre ambos grupos.
+
+## Métricas de evaluación
+
+```{r metricas_simple}
+r2 <- summary(mod_simple)$r.squared
+r2_aj <- summary(mod_simple)$adj.r.squared
+mse <- mean(residuals(mod_simple)^2)
+
+cat("R^2:", round(r2, 4), "\n")
+cat("R^2 ajustado:", round(r2_aj, 4), "\n")
+cat("MSE:", round(mse, 4), "\n")
+```
+
+Con solo el género como predictora, el modelo explica apenas 7.3% de la variabilidad del log-salario (el género por sí solo no captura las verdaderas razones de las diferencias salariales). Veamos qué pasa si añadimos edad, educación y tipo de jornada.
+
+# Regresión Lineal Múltiple (MRLM)
+
+Añadimos `Age`, `Educ` (como variable categórica, vía sus dummies `DE2`, `DE3`, `DE4`) y `Parttime` como predictoras adicionales.
+
+$$\log(\text{Wage}_i) = \beta_0 + \beta_1 \text{Female}_i + \beta_2 \text{Age}_i + \beta_3 \text{DE2}_i + \beta_4 \text{DE3}_i + \beta_5 \text{DE4}_i + \beta_6 \text{Parttime}_i + \varepsilon_i$$
+
+```{r mod_mult}
+mod_mult <- lm(LogWage ~ Female + Age + factor(Educ) + Parttime, data = wage)
+summary(mod_mult)
+```
+
+## Análisis del modelo
+
+```{r analisis_mult}
+beta_female_mult <- coef(mod_mult)["Female"]
+gap_exacto_mult <- (exp(beta_female_mult) - 1) * 100
+
+cat("Brecha salarial AJUSTADA (aproximada):", round(beta_female_mult * 100, 2), "%\n")
+cat("Brecha salarial AJUSTADA (exacta):", round(gap_exacto_mult, 2), "%\n")
+cat("P-valor de Female en el modelo múltiple:",
+    round(summary(mod_mult)$coefficients["Female", 4], 4), "\n")
+```
+
+Ahora que añadimos edad, educación y tipo de jornada (si medio tiempo o más), el coeficiente de `Female` se reduce (de -25.1% a apenas -3.1%) y deja de ser estadísticamente significativo (p-valor 0.206).
+
+Podemos decir entonces que gran parte de la brecha salarial "bruta" que veíamos en el modelo simple no se debe al género en sí, sino a que, en esta muestra, las mujeres tienden a tener características distintas a las de los hombres (por ejemplo, mayor incidencia de trabajo de medio tiempo) que también afectan el salario.
+
+Las variables `Age` y los niveles de educación (`DE2`, `DE3`, `DE4`) y `Parttime` son significativas, lo que nos dice que mayor edad y mayor nivel educativo se asocian con salarios más altos, mientras que trabajar medio tiempo se asocia con salarios más bajos (consistente).
+
+## Supuesto de no multicolinealidad
+
+```{r vif}
+X <- model.matrix(mod_mult)[, -1]
+vif_manual <- sapply(colnames(X), function(v) {
+  f <- as.formula(paste0("`", v, "` ~ ."))
+  r2_v <- summary(lm(f, data = as.data.frame(X)))$r.squared
+  1 / (1 - r2_v)
+})
+print(round(vif_manual, 3))
+```
+
+Todos los VIF están muy por debajo de 5, por lo que no hay evidencia de multicolinealidad problemática entre las predictoras.
+
+## Métricas de evaluación
+
+```{r metricas_mult}
+r2_m <- summary(mod_mult)$r.squared
+r2_aj_m <- summary(mod_mult)$adj.r.squared
+mse_m <- mean(residuals(mod_mult)^2)
+
+cat("R^2:", round(r2_m, 4), "\n")
+cat("R^2 ajustado:", round(r2_aj_m, 4), "\n")
+cat("MSE:", round(mse_m, 4), "\n")
+```
+
+Este modelo explica mucho más la variabilidad de los datos.
+
+### Descomposición de la varianza (SST, SSR, SSE)
+
+```{r descomposicion}
+sst <- sum((wage$LogWage - mean(wage$LogWage))^2)
+ssr <- sum((fitted(mod_mult) - mean(wage$LogWage))^2)
+sse <- sum(residuals(mod_mult)^2)
+
+cat("SST:", round(sst, 2), "\n")
+cat("SSR:", round(ssr, 2), "\n")
+cat("SSE:", round(sse, 2), "\n")
+cat("SSR + SSE =", round(ssr + sse, 2), " (debe ser ~ SST)\n")
+```
+
+# Comparación de modelos
+
+```{r comparacion}
+comparacion <- data.frame(
+  Modelo = c("Simple (Female)", "Múltiple (Female + Age + Educ + Parttime)"),
+  R2 = c(r2, r2_m),
+  R2_ajustado = c(r2_aj, r2_aj_m)
+)
+comparacion
+
+n <- nrow(wage)
+p_simple <- length(coef(mod_simple))
+Cp_simple <- sse / mse_m - (n - 2 * p_simple)
+cat("Cp de Mallows (modelo simple):", round(Cp_simple, 2),
+    " (p =", p_simple, ")\n")
+```
+
+**Conclusión:** el modelo múltiple mejora el ajuste (R² ajustado de 0.071 a 0.713) y nos permite concluir que la brecha salarial observada entre hombres y mujeres se explica en su mayor parte por diferencias en edad, educación y tipo de jornada. Este es un ejemplo de cómo el MRLM permite ir más allá de una comparación de promedios y aislar el efecto de una variable de interés, manteniendo las demás constantes (interpretación *ceteris paribus*).

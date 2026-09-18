@@ -1,0 +1,71 @@
+---
+title: "Regresión Lineal Simple – Base de datos CPS1985"
+subtitle: "Parte práctica: Introducción a la Econometría — Modelos de Regresión"
+date: "16 de septiembre de 2026"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Datos
+
+Usamos la base `CPS1985` (Current Population Survey, 1985), que contiene información salarial de 534 trabajadores en Estados Unidos. La cargamos directamente desde el repositorio Rdatasets.
+
+```{r datos}
+cps <- read.csv(
+  "https://raw.githubusercontent.com/vincentarelbundock/Rdatasets/master/csv/AER/CPS1985.csv")
+str(cps)
+```
+
+Nuestra variable respuesta (Y) será `wage` (salario por hora, en dólares). Como predictora usaremos `education` (años de educación). Aquí un gráfico de cómo se ve la nube de puntos:
+
+```{r nube_puntos, fig.width=6, fig.height=5}
+plot(cps$education, cps$wage,
+     xlab = "Educación (años)", ylab = "Salario por hora (USD)",
+     main = "Relación entre educación y salario",
+     pch = 19, col = rgb(0, 0, 1, 0.3))
+```
+
+# Ajuste del modelo: Regresión Lineal Simple
+
+Empezamos con el modelo más simple: explicar el salario únicamente a partir de los años de educación.
+
+$$\text{wage}_i = \beta_0 + \beta_1 \cdot \text{education}_i + \varepsilon_i$$
+
+```{r mod_simple}
+mod_simple <- lm(wage ~ education, data = cps)
+summary(mod_simple)
+```
+
+## Pruebas de hipótesis
+
+El resumen anterior ya incluye la prueba t de significancia individual para $\beta_1$ y la prueba F de significancia general (en este caso equivalentes, al haber una sola predictora).
+
+```{r confint}
+confint(mod_simple)
+```
+
+## Métricas de evaluación
+
+```{r metricas}
+r2 <- summary(mod_simple)$r.squared
+r2_aj <- summary(mod_simple)$adj.r.squared
+mse <- mean(residuals(mod_simple)^2)
+
+cat("R^2:", round(r2, 4), "\n")
+cat("R^2 ajustado:", round(r2_aj, 4), "\n")
+cat("MSE:", round(mse, 4), "\n")
+```
+
+```{r recta_ajustada, fig.width=6, fig.height=5}
+plot(cps$education, cps$wage,
+     xlab = "Educación (años)", ylab = "Salario por hora (USD)",
+     pch = 19, col = rgb(0, 0, 1, 0.3))
+abline(mod_simple, col = "black", lwd = 2)
+```
